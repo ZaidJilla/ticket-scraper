@@ -41,7 +41,13 @@ def send_imessage(message):
 def check_tickets():
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True, args=["--disable-blink-features=AutomationControlled"]
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+            ],
         )
 
         context = browser.new_context(
@@ -51,7 +57,6 @@ def check_tickets():
         )
 
         page = context.new_page()
-
         page.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
