@@ -4,6 +4,7 @@ import os
 import requests
 import smtplib
 import time
+from sites import check_gametime
 
 load_dotenv()
 
@@ -15,8 +16,8 @@ GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 PRICE_THRESHOLD = 500
 MIN_QUANTITY = 4
 CHECK_INTERVAL = 12 * 60 * 60
-EVENT_URL = "https://www.tickpick.com/buy-don-toliver-tickets-7718028/"
-API_URL = "https://api.tickpick.com/1.0/listings/internal/event-v2/7718028"
+TICKPICK_EVENT_URL = "https://www.tickpick.com/buy-don-toliver-tickets-7718028/"
+TICKPICK_API_URL = "https://api.tickpick.com/1.0/listings/internal/event-v2/7718028"
 
 
 def send_discord(message):
@@ -38,31 +39,37 @@ def send_imessage(message):
         print(f"iMessage failed: {e}")
 
 
-def check_tickets():
+def send_alert(deal):
+    message = (
+        f"@everyone DON TOLIVER FLOOR ALERT\n"
+        f"Source: {deal['source']}\n"
+        f"Section: {deal.get('section', 'N/A')}\n"
+        f"Row: {deal['row']}\n"
+        f"Price: ${deal['price']}\n"
+        f"Quantity: {deal['quantity']}\n"
+        f"Buy here: {deal['url']}"
+    )
+    send_discord(message)
+    send_imessage(message)
+
+
+def check_tickpick():
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-            ],
+            headless=False, args=["--disable-blink-features=AutomationControlled"]
         )
-
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 800},
             locale="en-US",
         )
-
         page = context.new_page()
         page.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
         try:
-            page.goto(EVENT_URL)
+            page.goto(TICKPICK_EVENT_URL)
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(5000)
 
@@ -71,16 +78,16 @@ def check_tickets():
 
             data = page.evaluate(f"""
                 async () => {{
-                const response = await fetch("{API_URL}", {{
-                headers: {{
-                "Cookie": "{cookie_str}",
-                "Referer": "https://www.tickpick.com/",
-                "Accept": "application/json"
+                    const response = await fetch("{TICKPICK_API_URL}", {{
+                        headers: {{
+                            "Cookie": "{cookie_str}",
+                            "Referer": "https://www.tickpick.com/",
+                            "Accept": "application/json"
+                        }}
+                    }});
+                    return response.json();
                 }}
-            }});
-        return response.json();
-        }}
-        """)
+            """)
 
             listings = data["listings"]
             floor_tickets = []
@@ -93,13 +100,20 @@ def check_tickets():
 
                     if quantity >= MIN_QUANTITY and price <= PRICE_THRESHOLD:
                         floor_tickets.append(
-                            {"row": row, "price": price, "quantity": quantity}
+                            {
+                                "source": "TickPick",
+                                "section": listing.get("sid"),
+                                "row": row,
+                                "price": price,
+                                "quantity": quantity,
+                                "url": TICKPICK_EVENT_URL,
+                            }
                         )
 
             return floor_tickets
 
         except Exception as e:
-            print(f"Error checking tickets: {e}")
+            print(f"TickPick error: {e}")
             return []
 
         finally:
@@ -110,21 +124,19 @@ def run():
     print("Bot started. Checking every 12 hours.")
     while True:
         print("Checking tickets...")
-        deals = check_tickets()
+        all_deals = []
 
-        if deals:
-            cheapest = min(deals, key=lambda x: x["price"])
-            message = (
-                f"@everyone DON TOLIVER FLOOR ALERT\n"
-                f"Row: {cheapest['row']}\n"
-                f"Price: ${cheapest['price']}\n"
-                f"Quantity: {cheapest['quantity']}\n"
-                f"Buy here: {EVENT_URL}"
-            )
-            send_discord(message)
-            send_imessage(message)
+        all_deals += check_tickpick()
+        all_deals += check_gametime(PRICE_THRESHOLD, MIN_QUANTITY)
+
+        if all_deals:
+            cheapest = min(all_deals, key=lambda x: x["price"])
+            print(f"Deal found: ${cheapest['price']} on {cheapest['source']}")
+            send_alert(cheapest)
         else:
-            print(f"No floor tickets found with 4+ quantity under ${PRICE_THRESHOLD}.")
+            print(
+                f"No floor tickets found with {MIN_QUANTITY}+ quantity under ${PRICE_THRESHOLD}."
+            )
 
         print("Next check in 12 hours.")
         time.sleep(CHECK_INTERVAL)
