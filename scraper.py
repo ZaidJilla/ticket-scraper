@@ -56,7 +56,13 @@ def send_alert(deal):
 def check_tickpick():
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False, args=["--disable-blink-features=AutomationControlled"]
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+            ],
         )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
