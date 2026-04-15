@@ -12,10 +12,11 @@ DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 IMESSAGE_ADDRESS = os.getenv("IMESSAGE_ADDRESS")
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+DISCORD_MENTION = os.getenv("DISCORD_MENTION", "@everyone")
 
 PRICE_THRESHOLD = 500
 MIN_QUANTITY = 4
-CHECK_INTERVAL = 12 * 60 * 60
+CHECK_INTERVAL = 2 * 60 * 60
 TICKPICK_EVENT_URL = "https://www.tickpick.com/buy-don-toliver-tickets-7718028/"
 TICKPICK_API_URL = "https://api.tickpick.com/1.0/listings/internal/event-v2/7718028"
 
@@ -41,7 +42,7 @@ def send_imessage(message):
 
 def send_alert(deal):
     message = (
-        f"@everyone DON TOLIVER FLOOR ALERT\n"
+        f"{DISCORD_MENTION} DON TOLIVER FLOOR ALERT\n"
         f"Source: {deal['source']}\n"
         f"Section: {deal.get('section', 'N/A')}\n"
         f"Row: {deal['row']}\n"
