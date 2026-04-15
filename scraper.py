@@ -41,7 +41,7 @@ def send_imessage(message):
 def check_tickets():
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -66,10 +66,21 @@ def check_tickets():
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(5000)
 
+            cookies = context.cookies()
+            cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+
             data = page.evaluate(f"""
-                () => fetch("{API_URL}")
-                    .then(r => r.json())
-            """)
+                async () => {{
+                const response = await fetch("{API_URL}", {{
+                headers: {{
+                "Cookie": "{cookie_str}",
+                "Referer": "https://www.tickpick.com/",
+                "Accept": "application/json"
+                }}
+            }});
+        return response.json();
+        }}
+        """)
 
             listings = data["listings"]
             floor_tickets = []
